@@ -10,10 +10,11 @@ Two separate Python scripts to fetch and parse NFL Fantasy league data from NFL.
 - Focuses on your individual team's performance
 
 ### 👥 **2. League Matchups** (`league_matchups.py`)
-- Shows **current week matchups for ALL teams** in the league
+- Shows **previous week results AND current week matchups** for ALL teams
 - Includes owner names for each team
-- Displays starting lineups side-by-side for each matchup
-- Perfect for seeing who everyone is playing this week
+- Displays starting lineups side-by-side for current week matchups
+- Shows final scores and results for previous week
+- Perfect for seeing league-wide performance and upcoming games
 
 ### 🔧 **3. Common Functions** (`nfl_common.py`)
 - Shared utility functions used by both scripts
@@ -21,16 +22,26 @@ Two separate Python scripts to fetch and parse NFL Fantasy league data from NFL.
 
 ## 📦 **Installation**
 
-1. Install the required dependencies:
+This project uses `uv` for dependency management. Install dependencies with:
+
 ```bash
-pip install -r requirements_parser.txt
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install project dependencies
+uv sync
+```
+
+Alternatively, you can install manually with pip:
+```bash
+pip install requests beautifulsoup4 lxml
 ```
 
 ## 🚀 **Usage**
 
 ### Personal Team Schedule
 ```bash
-python my_team_schedule.py
+uv run my_team_schedule.py
 ```
 
 **Example Output:**
@@ -61,20 +72,32 @@ Week 1: vs FlyWithTheEagles - 118.16-111.10 (Win)
 
 ### League-Wide Matchups
 ```bash
-python league_matchups.py
+uv run league_matchups.py
 ```
 
 **Example Output:**
 ```
 🔄 Fetching NFL Fantasy league data...
+📅 Detected current week: 2
 📊 Parsing current week matchups...
 📊 Extracting team IDs...
+📊 Fetching previous week matchups...
 📊 Fetching team rosters and owners...
   Fetching data for A Five Star Team (ID: 10)...
   Fetching data for DangerousNightsCrew (ID: 13)...
   ...
 
-🏈 WEEK 2 LEAGUE MATCHUPS
+🏈 PREVIOUS WEEK 1 RESULTS LEAGUE MATCHUPS
+==========================================================================================
+
+ 1. A Five Star Team (Calvin)             vs FlyWithTheEagles (Mike)              📊 118.16 - 111.10
+ 2. Run CMC (Owner3)                      vs Purple Reign (Owner4)                📊 105.50 - 98.75
+ 3. Snacks and sacks (Owner5)             vs Cache Me Outside (Owner6)            📊 112.25 - 107.80
+    ...
+
+📈 Total matchups: 7
+
+🏈 CURRENT WEEK 2 LEAGUE MATCHUPS
 ==========================================================================================
 
  1. A Five Star Team (Calvin)             vs DangerousNightsCrew (JJ)             📅 Upcoming
@@ -115,9 +138,10 @@ url = "https://fantasy.nfl.com/league/YOUR_LEAGUE_ID?scheduleType=team&standings
 | Feature | My Team Schedule | League Matchups |
 |---------|------------------|-----------------|
 | Personal schedule | ✅ | ❌ |
-| Past results | ✅ | ❌ |
-| Upcoming games | ✅ | ❌ |
+| Past results | ✅ | ✅ |
+| Upcoming games | ✅ | ✅ |
 | Current week all teams | ❌ | ✅ |
+| Previous week all teams | ❌ | ✅ |
 | Owner names | ❌ | ✅ |
 | Starting lineups | ❌ | ✅ |
 | Fantasy points | ❌ | ✅ |
@@ -157,9 +181,4 @@ Both scripts include error handling for:
 
 ## 🧪 **Testing**
 
-You can test the parsing functions with local HTML files using:
-```bash
-python test_parser.py
-```
-
-This will demonstrate both functionalities using your existing HTML files.
+You can test the parsing functions with local HTML files in the `resources/` directory by importing and using the functions from `nfl_common.py` directly.
