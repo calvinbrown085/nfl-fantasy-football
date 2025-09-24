@@ -9,7 +9,7 @@ in the league, including owner names and starting lineups.
 import sys
 from nfl_common import (
     fetch_schedule_html, extract_team_ids_from_matchups, 
-    parse_current_week_matchups, fetch_team_roster
+    parse_current_week_matchups, fetch_team_roster, fetch_team_projections
 )
 import re
 from typing import List, Dict
@@ -106,7 +106,26 @@ def display_week_matchups(matchups: List[Dict[str, str]], week_label: str, team_
         else:
             status = f"📊 {team1_score} - {team2_score}"
         
-        print(f"\n{i:2}. {team1_display:<40} vs {team2_display:<40} {status}")
+        # Compute projected totals if available
+        proj_info = ""
+        if team_rosters:
+            def sum_proj(team_name: str) -> float:
+                team_data = team_rosters.get(team_name, {})
+                projections = team_data.get('projections', {})
+                starters = projections.get('starters', []) if isinstance(projections, dict) else []
+                total = 0.0
+                for p in starters:
+                    try:
+                        total += float(p.get('projected_points', '0') or 0)
+                    except ValueError:
+                        pass
+                return total
+            t1p = sum_proj(team1)
+            t2p = sum_proj(team2)
+            if t1p > 0 or t2p > 0:
+                proj_info = f" | Proj: {t1p:.2f} - {t2p:.2f}"
+
+        print(f"\n{i:2}. {team1_display:<40} vs {team2_display:<40} {status}{proj_info}")
         
         # Display roster information if available and requested
         if show_rosters and team_rosters:
@@ -122,6 +141,20 @@ def display_week_matchups(matchups: List[Dict[str, str]], week_label: str, team_
                 # Display starters for both teams side by side
                 team1_starters = team1_roster.get('starters', [])
                 team2_starters = team2_roster.get('starters', [])
+
+                # Build projection maps keyed by player_id for easy lookup
+                def build_proj_map(team_data: Dict[str, any]) -> Dict[str, str]:
+                    proj_map: Dict[str, str] = {}
+                    projections = team_data.get('projections', {}) if isinstance(team_data, dict) else {}
+                    starters_proj = projections.get('starters', []) if isinstance(projections, dict) else []
+                    for p in starters_proj:
+                        pid = p.get('player_id')
+                        if pid:
+                            proj_map[pid] = p.get('projected_points', '')
+                    return proj_map
+
+                team1_proj_map = build_proj_map(team1_data)
+                team2_proj_map = build_proj_map(team2_data)
                 
                 print(f"    {'STARTING LINEUP':<40} {'STARTING LINEUP':<40}")
                 print(f"    {team1_display[:38]:<40} {team2_display[:38]:<40}")
@@ -136,14 +169,19 @@ def display_week_matchups(matchups: List[Dict[str, str]], week_label: str, team_
                         p1 = team1_starters[j]
                         pos1 = p1.get('position', 'N/A')
                         name1 = p1.get('name', 'Unknown')[:18]
-                        pts1 = p1.get('fantasy_points', '0')
+                        # Prefer projected points if available for this week
+                        pid1 = p1.get('player_id')
+                        proj1 = team1_proj_map.get(pid1) if pid1 else None
+                        pts1 = proj1 if proj1 not in (None, '') else p1.get('fantasy_points', '0')
                         team1_player = f"{pos1:3} {name1:<18} ({pts1})"
                     
                     if j < len(team2_starters):
                         p2 = team2_starters[j]
                         pos2 = p2.get('position', 'N/A')
                         name2 = p2.get('name', 'Unknown')[:18]
-                        pts2 = p2.get('fantasy_points', '0')
+                        pid2 = p2.get('player_id')
+                        proj2 = team2_proj_map.get(pid2) if pid2 else None
+                        pts2 = proj2 if proj2 not in (None, '') else p2.get('fantasy_points', '0')
                         team2_player = f"{pos2:3} {name2:<18} ({pts2})"
                     
                     print(f"    {team1_player:<40} {team2_player:<40}")
@@ -169,7 +207,7 @@ def main():
     url = f"{base_url}?scheduleType=team&standingsTab=schedule"
     
     # Cookie string for authentication - update this with your actual cookies
-    cookies = '<replace with cookies>'
+    cookies = ''
     try:
         print("🔄 Fetching NFL Fantasy league data...")
         html_content = fetch_schedule_html(url, cookies)
@@ -200,12 +238,25 @@ def main():
                     team_id = team_mapping[team1]
                     print(f"  Fetching data for {team1} (ID: {team_id})...")
                     team_data = fetch_team_roster(team_id, cookies)
+                    # Fetch projections for starters/bench from Game Center
+                    try:
+                        projections = fetch_team_projections(team_id, current_week_num, cookies)
+                        team_data['projections'] = projections
+                    except Exception as e:
+                        print(f"    Warning: could not fetch projections for {team1}: {e}")
+                        team_data['projections'] = {'starters': [], 'bench': []}
                     team_rosters[team1] = team_data
                 
                 if team2 and team2 in team_mapping and team2 not in team_rosters:
                     team_id = team_mapping[team2]
                     print(f"  Fetching data for {team2} (ID: {team_id})...")
                     team_data = fetch_team_roster(team_id, cookies)
+                    try:
+                        projections = fetch_team_projections(team_id, current_week_num, cookies)
+                        team_data['projections'] = projections
+                    except Exception as e:
+                        print(f"    Warning: could not fetch projections for {team2}: {e}")
+                        team_data['projections'] = {'starters': [], 'bench': []}
                     team_rosters[team2] = team_data
         
         # Display previous week results (without rosters for cleaner display)

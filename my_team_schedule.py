@@ -139,7 +139,7 @@ def main():
     url = "https://fantasy.nfl.com/league/12698811?scheduleType=team&standingsTab=schedule"
     
     # Cookie string for authentication - update this with your actual cookies
-    cookies = '<replace with cookies>'
+    cookies = ''
     try:
         print("🔄 Fetching your team's schedule...")
         html_content = fetch_schedule_html(url, cookies)

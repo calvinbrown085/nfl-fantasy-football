@@ -298,3 +298,88 @@ def extract_team_name(html_content: str) -> str:
         return "Your Team"
     
     return "Unknown Team"
+
+def fetch_gamecenter_html(team_id: str, week: int, cookies: str = "", league_id: str = "12698811") -> str:
+    """
+    Fetch the Game Center HTML for a given team and week.
+    
+    Args:
+        team_id: Team ID in the league
+        week: Week number to fetch
+        cookies: Cookie string for authentication
+        league_id: League ID (defaults to current league)
+    
+    Returns:
+        HTML content as string
+    """
+    url = f"https://fantasy.nfl.com/league/{league_id}/team/{team_id}/gamecenter?week={week}"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    }
+    if cookies:
+        headers['cookie'] = cookies
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.text
+
+def parse_gamecenter_projections(html_content: str) -> Dict[str, List[Dict[str, str]]]:
+    """
+    Parse projected points for starters and bench from Game Center HTML.
+    
+    Looks for elements like:
+      <span class="playerWeekProjectedPts playerId-2560955">22.05</span>
+    and captures position, name, and projected points.
+    
+    Returns a dict with keys 'starters' and 'bench'.
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
+    result: Dict[str, List[Dict[str, str]]] = { 'starters': [], 'bench': [] }
+
+    def parse_table(table_container, bucket_key: str) -> None:
+        if not table_container:
+            return
+        rows = table_container.find_all('tr', class_=lambda x: x and x.startswith('player-'))
+        for row in rows:
+            pos_cell = row.find('td', class_='teamPosition')
+            name_cell = row.find('td', class_='playerNameAndInfo')
+            proj_cell = row.find('td', class_='stat')
+
+            if not (pos_cell and name_cell and proj_cell):
+                continue
+
+            pos_span = pos_cell.find('span', class_='pre')
+            player_link = name_cell.find('a', class_='playerCard')
+            proj_span = row.find('span', class_='playerWeekProjectedPts')
+
+            if not (pos_span and player_link and proj_span):
+                # skip rows without projections
+                continue
+
+            player: Dict[str, str] = {}
+            player['position'] = pos_span.get_text(strip=True)
+            player['name'] = player_link.get_text(strip=True)
+            # Try to include player id if available
+            href = player_link.get('href', '')
+            if 'playerId=' in href:
+                player['player_id'] = href.split('playerId=')[1].split('&')[0]
+            player['projected_points'] = proj_span.get_text(strip=True)
+
+            result[bucket_key].append(player)
+
+    # Team's starters table
+    starters_wrap = soup.find('div', id=lambda x: x and x.startswith('tableWrap'))
+    parse_table(starters_wrap, 'starters')
+
+    # Bench table
+    bench_wrap = soup.find('div', id=lambda x: x and x.startswith('tableWrapBN'))
+    parse_table(bench_wrap, 'bench')
+
+    return result
+
+def fetch_team_projections(team_id: str, week: int, cookies: str = "", league_id: str = "12698811") -> Dict[str, List[Dict[str, str]]]:
+    """
+    Convenience function to fetch and parse a team's projected points (starters and bench)
+    for a specific week from the Game Center page.
+    """
+    html = fetch_gamecenter_html(team_id, week, cookies, league_id)
+    return parse_gamecenter_projections(html)
