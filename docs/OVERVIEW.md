@@ -1,83 +1,88 @@
-# Project Overview
+# NFL Fantasy Football Schedule Parsers - Developer Overview
 
-This project provides two Python scripts for fetching and parsing NFL Fantasy Football league data directly from the NFL.com Fantasy website. It allows users to view their personal team's schedule and results, or get a comprehensive overview of all league matchups, including past results and current week starting lineups.
+This project provides two Python scripts for scraping and parsing NFL.com Fantasy Football league data. It allows users to view their personal team's season schedule and results, or get a league-wide overview of past week's results and current week's matchups, including detailed starting lineups and owner information. The core functionality relies on web scraping NFL.com Fantasy pages to extract and display relevant fantasy football data.
 
-# Architecture
+## Architecture
 
-The system follows a client-side scraping architecture. Two primary scripts, `my_team_schedule.py` and `league_matchups.py`, act as entry points. Both scripts leverage `nfl_common.py`, a shared utility module, to handle the underlying web scraping logic.
+The project employs a modular architecture centered around a common utility module (`nfl_common.py`) which handles the heavy lifting of web scraping and HTML parsing using `requests` and `BeautifulSoup4`. Two main application scripts (`my_team_schedule.py` and `league_matchups.py`) then import and utilize these common functions to fetch specific types of data (individual team schedules or league-wide matchups) and present them to the user. This design separates data acquisition and parsing logic from application-specific display logic, promoting reusability and maintainability. Data is primarily extracted from HTML content, meaning the system is dependent on the consistent structure of NFL.com's fantasy football pages.
 
-1.  **HTML Fetching**: `nfl_common.py` uses the `requests` library to fetch HTML content from specified NFL.com Fantasy URLs, including cookie-based authentication.
-2.  **HTML Parsing**: `nfl_common.py` then uses `BeautifulSoup4` (with `lxml` for performance) to parse the fetched HTML, extracting structured data such as team names, IDs, scores, player rosters, and owner names.
-3.  **Data Processing & Display**: The main scripts (`my_team_schedule.py` and `league_matchups.py`) take the parsed data from `nfl_common.py` and apply specific logic to format and display it to the console, catering to their respective features (personal schedule vs. league-wide matchups).
+## Key Files
 
-This modular approach separates the concerns of web interaction and generic parsing from application-specific display logic.
+*   **`my_team_schedule.py`**:
+    *   **Purpose**: Fetches and displays a specific user's fantasy team schedule, including past results, the current week's matchup, and upcoming games.
+    *   **Key Functions**:
+        *   `parse_schedule_data(html_content: str) -> List[Dict[str, str]]`: Parses the HTML of a team's schedule page to extract individual game details (week, opponent, scores, status, result). It identifies current, past, and future games.
+        *   `display_schedule(schedule_data: List[Dict[str, str]], team_name: str) -> None`: Formats and prints the extracted schedule data to the console, categorizing games into current week, upcoming, and recent results.
+    *   **Dependencies**: Relies on `nfl_common.fetch_schedule_html` to get page content and `nfl_common.extract_team_name` for display. Uses `BeautifulSoup4` internally for its specific parsing needs.
 
-# Key Files
+*   **`league_matchups.py`**:
+    *   **Purpose**: Fetches and displays previous week's results and the current week's matchups for all teams in a league, complete with owner names and detailed starting lineups, including projected points.
+    *   **Key Functions**:
+        *   `get_current_week_number(html_content: str) -> int`: Extracts the current week number from the main league page HTML to navigate correctly for past/current week data.
+        *   `fetch_previous_week_matchups(base_url: str, current_week: int, cookies: str) -> List[Dict[str, str]]`: Constructs a URL for the previous week and fetches its matchup data using `nfl_common` functions.
+        *   `display_week_matchups(matchups: List[Dict[str, str]], week_label: str, team_rosters: Dict[str, Dict[str, any]] = None, show_rosters: bool = True) -> None`: Formats and prints matchups. It can enrich the display with owner names, final scores/upcoming status, and detailed side-by-side starting lineups with player points/projections.
+    *   **Dependencies**: Heavily uses `nfl_common` for `fetch_schedule_html`, `extract_team_ids_from_matchups`, `parse_current_week_matchups`, `fetch_team_roster`, and `fetch_team_projections` (though `fetch_team_projections` is present in `league_matchups.py` import, its actual implementation or usage for `fetch_team_projections` is not fully shown in `nfl_common.py` or `league_matchups.py` snippet).
 
-*   `my_team_schedule.py`:
-    *   **Purpose**: Focuses on a single fantasy team.
-    *   **Functionality**: Fetches the specified team's full season schedule, displaying past game results, the current week's matchup, and upcoming games.
-    *   **Key Functions**: `parse_schedule_data` (extracts individual team schedule from HTML), `display_schedule` (formats and prints the schedule).
-*   `league_matchups.py`:
-    *   **Purpose**: Provides a league-wide view of matchups.
-    *   **Functionality**: Fetches and displays previous week's results and current week's matchups for all teams, including owner names, final scores (for past games), and detailed starting lineups with projected points for current week games.
-    *   **Key Functions**: `get_current_week_number` (determines current week), `fetch_previous_week_matchups` (retrieves prior week's data), `display_week_matchups` (formats and prints league matchups with optional roster details).
-*   `nfl_common.py`:
-    *   **Purpose**: Contains common, reusable functions for web scraping NFL.com Fantasy.
-    *   **Functionality**:
-        *   `fetch_schedule_html`: Performs HTTP GET requests with user-agent and cookies.
-        *   `extract_team_ids_from_matchups`: Maps team names to their numerical IDs from matchup data.
-        *   `parse_team_roster`: Extracts player positions, names, IDs, and fantasy points for starters and bench from a team's roster page.
-        *   `extract_team_owner`: Retrieves the owner's name from a team's page.
-        *   `fetch_team_roster`: Combines fetching and parsing to get a team's full roster and owner.
-        *   `parse_current_week_matchups`: Extracts matchup details (teams, scores, links) for a given week.
-        *   `extract_team_name`: Retrieves the main team name from the HTML.
-*   `pyproject.toml`: Defines project metadata and lists required Python dependencies (`requests`, `beautifulsoup4`, `lxml`). Used by `uv` for package management.
-*   `resources/`: Contains local HTML files (`schedule.html`, `team.html`) which can be used for testing parsing logic without live network requests, aiding in development and debugging.
+*   **`nfl_common.py`**:
+    *   **Purpose**: A shared utility module containing common functions for HTTP requests, HTML parsing, and data extraction, used by both `my_team_schedule.py` and `league_matchups.py`.
+    *   **Key Functions**:
+        *   `fetch_schedule_html(url: str, cookies: str) -> str`: Performs an authenticated HTTP GET request to the specified URL using `requests`, setting a User-Agent header and including provided cookies for session authentication. Raises `requests.RequestException` on failure.
+        *   `extract_team_ids_from_matchups(html_content: str) -> Dict[str, str]`: Parses HTML to map team names to their numerical team IDs, crucial for constructing team-specific URLs.
+        *   `parse_team_roster(html_content: str) -> Dict[str, List[Dict[str, str]]]:` Extracts a team's full roster (starters and bench) from a team-specific page, including player position, name, ID, team, and fantasy points.
+        *   `extract_team_owner(html_content: str) -> str`: Retrieves the owner's name from a team's page.
+        *   `fetch_team_roster(team_id: str, cookies: str) -> Dict[str, any]`: Orchestrates fetching a team's specific page, then parses its roster and owner name.
+        *   `parse_current_week_matchups(html_content: str) -> List[Dict[str, str]]`: Extracts general matchup data (team names, scores/status, week) for all games displayed on a scoreboard section.
+        *   `extract_team_name(html_content: str) -> str`: Identifies and returns the user's team name from the HTML content.
+    *   **Dependencies**: `requests` for HTTP and `beautifulsoup4` (with `lxml` for performance) for HTML parsing.
 
-# How to Run
+*   **`pyproject.toml`**: Defines project metadata and dependencies. It specifies `requests`, `beautifulsoup4`, and `lxml` as core requirements, along with a Python version constraint.
 
-## Prerequisites
+## How to Run
 
-*   Python 3.10 or higher.
-*   `uv` for dependency management (recommended).
+This project uses `uv` for dependency management, which is recommended for faster operations.
 
-## Installation
-
-1.  **Install `uv` (if not already installed):**
+1.  **Install `uv` (if not already installed)**:
     ```bash
     curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
-2.  **Install project dependencies:**
+
+2.  **Install project dependencies**:
     ```bash
     uv sync
     ```
-    Alternatively, using pip:
+    Alternatively, if not using `uv`:
     ```bash
     pip install requests beautifulsoup4 lxml
     ```
 
-## Usage
+3.  **Run the scripts**:
 
-### Personal Team Schedule (`my_team_schedule.py`)
-Displays your team's season schedule with past results and upcoming games.
-```bash
-uv run my_team_schedule.py
-```
+    *   **Personal Team Schedule**:
+        ```bash
+        uv run my_team_schedule.py
+        ```
 
-### League-Wide Matchups (`league_matchups.py`)
-Shows previous week results and current week matchups for all teams, including rosters and owner names.
-```bash
-uv run league_matchups.py
-```
+    *   **League-Wide Matchups**:
+        ```bash
+        uv run league_matchups.py
+        ```
 
-# Configuration
+## Configuration
 
-The scripts require direct modification for authentication and target league settings.
+The scripts require specific configuration parameters that are currently **hardcoded** within `my_team_schedule.py` and `league_matchups.py`:
 
-*   **Authentication Cookies**: Both `my_team_schedule.py` and `league_matchups.py` contain a `cookies` variable (an empty string by default). For the scripts to successfully fetch data from NFL.com, this variable must be updated with a valid session cookie from your NFL.com Fantasy account.
-*   **League ID**: The `base_url` variable in both scripts currently points to league ID `12698811`. To use the scripts with a different league, modify the URL in `my_team_schedule.py` and `league_matchups.py` to replace `12698811` with your desired NFL Fantasy league ID.
+*   **Cookies**: Both scripts contain a `cookies` variable (e.g., `cookies = ''`). This string needs to be updated with your current NFL.com Fantasy session cookies for successful authentication and data fetching. Without valid cookies, the scripts will likely fail to retrieve personalized or league-specific data.
+*   **League ID**: The `base_url` or `url` variables in both scripts point to a specific league ID (e.g., `12698811`). To use the scripts with a different fantasy league, update the `league/YOUR_LEAGUE_ID` segment in the URL definitions within each script.
 
-# How to Test
+These parameters are *not* environment variables; they must be changed directly in the Python source files.
 
-The parsing functions within `nfl_common.py` (e.g., `parse_schedule_data`, `parse_team_roster`, `parse_current_week_matchups`) can be tested independently using the local HTML files located in the `resources/` directory. You can import these functions into a separate test script or a Python interactive session and pass the content of `schedule.html` or `team.html` to them to verify parsing logic without making live network requests.
+## How to Test
+
+The `README.md` suggests testing by importing and utilizing functions from `nfl_common.py` directly with local HTML files. This allows for isolated testing of the parsing logic without making live HTTP requests to NFL.com.
+
+To do this:
+1.  Save relevant NFL Fantasy page HTML (e.g., `schedule.html`, `team.html` as indicated in `resources/`) locally.
+2.  In a separate Python script or interactive session, import functions from `nfl_common.py`.
+3.  Load the local HTML content from your saved files.
+4.  Call the `nfl_common` parsing functions (e.g., `parse_schedule_data`, `parse_team_roster`, `parse_current_week_matchups`) with the loaded HTML content as input.
+5.  Verify the output matches expected data structures.
